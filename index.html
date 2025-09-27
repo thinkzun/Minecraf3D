@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Minecraft-like Terrain</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
+
+<script>
+    // Scene, Camera, Renderer
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb); // sky blue
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Controls (FPS-style)
+    const controls = new THREE.PointerLockControls(camera, document.body);
+    document.body.addEventListener('click', () => {
+        controls.lock();
+    });
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(10, 20, 10);
+    scene.add(directionalLight);
+
+    // Basic Minecraft-like terrain (blocks)
+    const blockSize = 1;
+    const terrainWidth = 10;
+    const terrainDepth = 10;
+
+    const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+
+    for(let x = -terrainWidth/2; x < terrainWidth/2; x++){
+        for(let z = -terrainDepth/2; z < terrainDepth/2; z++){
+            const material = new THREE.MeshStandardMaterial({color: 0x228B22}); // green grass
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.set(x, 0, z);
+            scene.add(cube);
+        }
+    }
+
+    // Player starting position
+    camera.position.set(0, 2, 5);
+
+    // Movement
+    const move = { forward: false, backward: false, left: false, right: false };
+    const velocity = new THREE.Vector3();
+    const speed = 0.1;
+
+    document.addEventListener('keydown', (e) => {
+        if(e.code === 'KeyW') move.forward = true;
+        if(e.code === 'KeyS') move.backward = true;
+        if(e.code === 'KeyA') move.left = true;
+        if(e.code === 'KeyD') move.right = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+        if(e.code === 'KeyW') move.forward = false;
+        if(e.code === 'KeyS') move.backward = false;
+        if(e.code === 'KeyA') move.left = false;
+        if(e.code === 'KeyD') move.right = false;
+    });
+
+    // Animate
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Update movement
+        velocity.set(0,0,0);
+        if(move.forward) velocity.z -= speed;
+        if(move.backward) velocity.z += speed;
+        if(move.left) velocity.x -= speed;
+        if(move.right) velocity.x += speed;
+
+        controls.moveRight(velocity.x);
+        controls.moveForward(velocity.z);
+
+        renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Resize handling
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
