@@ -2,13 +2,156 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Browser Minecraft Clone</title>
+<title>Browser Minecraft Clone with Jumping</title>
 <style>
   body { margin:0; overflow:hidden; }
   canvas { display:block; cursor: crosshair; }
 </style>
 </head>
 <body>
-<script type="module" src="main.js"></script>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+
+// --- Scene & Camera ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(10, 5, 25);
+
+// --- Renderer ---
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// --- Light ---
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(10,20,10);
+scene.add(light);
+
+// --- Terrain ---
+const chunkSize = 20;
+const blocks = [];
+const geometry = new THREE.BoxGeometry(1,1,1);
+
+for(let x=0;x<chunkSize;x++){
+  for(let z=0;z<chunkSize;z++){
+    const height = Math.floor(Math.random()*3)+1;
+    for(let y=0;y<height;y++){
+      const material = new THREE.MeshStandardMaterial({color:0x228B22});
+      const cube = new THREE.Mesh(geometry, material);
+      cube.position.set(x, y, z);
+      scene.add(cube);
+      blocks.push(new THREE.Box3().setFromObject(cube));
+    }
+  }
+}
+
+// Floor plane
+const planeGeometry = new THREE.PlaneGeometry(50,50);
+const planeMaterial = new THREE.MeshStandardMaterial({color:0x006400});
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+plane.rotation.x = -Math.PI/2;
+plane.position.y = -0.5;
+scene.add(plane);
+blocks.push(new THREE.Box3().setFromObject(plane));
+
+// --- Controls ---
+const keys = {};
+document.addEventListener('keydown', e => keys[e.code]=true);
+document.addEventListener('keyup', e => keys[e.code]=false);
+
+let pitch = 0, yaw = 0;
+let velocityY = 0;
+const gravity = -9.8;
+const jumpStrength = 5;
+
+// Pointer lock
+renderer.domElement.addEventListener('click', () => {
+  renderer.domElement.requestPointerLock();
+});
+
+document.addEventListener('mousemove', e => {
+  if(document.pointerLockElement === renderer.domElement){
+    yaw -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
+    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  }
+});
+
+// --- Movement & Collision ---
+const playerHeight = 1.6;
+const playerRadius = 0.25;
+let onGround = false;
+
+function updateControls(delta){
+  const speed = 5 * delta;
+  const direction = new THREE.Vector3();
+  camera.getWorldDirection(direction);
+
+  const forward = new THREE.Vector3(direction.x,0,direction.z).normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+
+  let move = new THREE.Vector3();
+  if(keys['KeyW']) move.add(forward.clone().multiplyScalar(speed));
+  if(keys['KeyS']) move.add(forward.clone().multiplyScalar(-speed));
+  if(keys['KeyA']) move.add(right.clone().multiplyScalar(-speed));
+  if(keys['KeyD']) move.add(right.clone().multiplyScalar(speed));
+
+  // Jumping
+  if(keys['Space'] && onGround){
+    velocityY = jumpStrength;
+    onGround = false;
+  }
+
+  // Apply gravity
+  velocityY += gravity * delta;
+  move.y = velocityY * delta;
+
+  const playerBox = new THREE.Box3(
+    new THREE.Vector3(camera.position.x - playerRadius, camera.position.y - playerHeight, camera.position.z - playerRadius),
+    new THREE.Vector3(camera.position.x + playerRadius, camera.position.y, camera.position.z + playerRadius)
+  );
+
+  // X movement
+  let testBox = playerBox.clone();
+  testBox.translate(new THREE.Vector3(move.x, 0, 0));
+  if(!blocks.some(b => b.intersectsBox(testBox))) camera.position.x += move.x;
+
+  // Z movement
+  testBox = playerBox.clone();
+  testBox.translate(new THREE.Vector3(0, 0, move.z));
+  if(!blocks.some(b => b.intersectsBox(testBox))) camera.position.z += move.z;
+
+  // Y movement and collision
+  testBox = playerBox.clone();
+  testBox.translate(new THREE.Vector3(0, move.y, 0));
+  if(!blocks.some(b => b.intersectsBox(testBox))){
+    camera.position.y += move.y;
+    onGround = false;
+  } else {
+    velocityY = 0;
+    onGround = true;
+  }
+
+  camera.rotation.set(pitch, yaw, 0);
+}
+
+// --- Animation Loop ---
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  updateControls(delta);
+  renderer.render(scene, camera);
+}
+animate();
+
+// --- Resize ---
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
 </body>
 </html>
