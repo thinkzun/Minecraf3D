@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Browser Minecraft Clone with Collision</title>
+<title>Browser Minecraft Clone with Correct Camera</title>
 <style>
   body { margin:0; overflow:hidden; }
   canvas { display:block; cursor: crosshair; }
@@ -16,7 +16,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb); // Sky blue
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(10, 2, 25); // Eye-level starting position
+camera.position.set(10, 5, 25); // Original camera height
 
 // --- Renderer ---
 const renderer = new THREE.WebGLRenderer({antialias:true});
@@ -30,7 +30,7 @@ scene.add(light);
 
 // --- Terrain (green blocks) ---
 const chunkSize = 20;
-const blocks = []; // store block bounding boxes
+const blocks = [];
 const geometry = new THREE.BoxGeometry(1,1,1);
 
 for(let x=0;x<chunkSize;x++){
@@ -78,6 +78,9 @@ document.addEventListener('mousemove', e => {
 });
 
 // --- Collision & Movement ---
+const playerHeight = 1.6;  // Eye-level height
+const playerRadius = 0.25; // Bounding box radius
+
 function updateControls(delta){
   const speed = 5 * delta;
   const direction = new THREE.Vector3();
@@ -96,26 +99,27 @@ function updateControls(delta){
   velocityY += gravity * delta;
   move.y = velocityY * delta;
 
+  // Bounding box around camera (eye-level)
   const playerBox = new THREE.Box3(
-    new THREE.Vector3(camera.position.x-0.25, camera.position.y-0.5, camera.position.z-0.25),
-    new THREE.Vector3(camera.position.x+0.25, camera.position.y+1.6, camera.position.z+0.25)
+    new THREE.Vector3(camera.position.x - playerRadius, camera.position.y - playerHeight, camera.position.z - playerRadius),
+    new THREE.Vector3(camera.position.x + playerRadius, camera.position.y, camera.position.z + playerRadius)
   );
 
-  // Check X movement
+  // X movement
   let testBox = playerBox.clone();
   testBox.translate(new THREE.Vector3(move.x, 0, 0));
   if(!blocks.some(b => b.intersectsBox(testBox))) camera.position.x += move.x;
 
-  // Check Z movement
+  // Z movement
   testBox = playerBox.clone();
   testBox.translate(new THREE.Vector3(0, 0, move.z));
   if(!blocks.some(b => b.intersectsBox(testBox))) camera.position.z += move.z;
 
-  // Check Y movement
+  // Y movement
   testBox = playerBox.clone();
   testBox.translate(new THREE.Vector3(0, move.y, 0));
   if(!blocks.some(b => b.intersectsBox(testBox))) camera.position.y += move.y;
-  else velocityY = 0;
+  else velocityY = 0; // stop falling on collision
 
   camera.rotation.set(pitch, yaw, 0);
 }
