@@ -5,7 +5,7 @@
 <title>Browser Minecraft Clone</title>
 <style>
   body { margin:0; overflow:hidden; }
-  canvas { display:block; }
+  canvas { display:block; cursor: crosshair; }
 </style>
 </head>
 <body>
@@ -14,7 +14,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 
 // --- Scene & Camera ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // sky blue
+scene.background = new THREE.Color(0x87ceeb); // Sky blue
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(10, 5, 25);
 
@@ -31,6 +31,7 @@ scene.add(light);
 // --- Terrain (green blocks) ---
 const chunkSize = 20;
 const geometry = new THREE.BoxGeometry(1,1,1);
+
 for(let x=0;x<chunkSize;x++){
   for(let z=0;z<chunkSize;z++){
     const height = Math.floor(Math.random()*3)+1;
@@ -57,10 +58,18 @@ document.addEventListener('keydown', e => keys[e.code]=true);
 document.addEventListener('keyup', e => keys[e.code]=false);
 
 let pitch = 0, yaw = 0;
+
+// Pointer lock for smooth camera control
+renderer.domElement.addEventListener('click', () => {
+  renderer.domElement.requestPointerLock();
+});
+
 document.addEventListener('mousemove', e => {
-  yaw -= e.movementX * 0.002;
-  pitch -= e.movementY * 0.002;
-  pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  if (document.pointerLockElement === renderer.domElement) {
+    yaw -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
+    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  }
 });
 
 function updateControls(delta){
@@ -89,7 +98,7 @@ function animate(){
 }
 animate();
 
-// --- Resize ---
+// --- Handle Window Resize ---
 window.addEventListener('resize', ()=>{
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
