@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Browser Minecraft Clone</title>
+<title>Browser Minecraft Clone with Collision</title>
 <style>
   body { margin:0; overflow:hidden; }
   canvas { display:block; cursor: crosshair; }
@@ -14,7 +14,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.m
 
 // --- Scene & Camera ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // Sky blue
+scene.background = new THREE.Color(0x87ceeb);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(10, 5, 25);
 
@@ -30,8 +30,9 @@ scene.add(light);
 
 // --- Terrain (green blocks) ---
 const chunkSize = 20;
-const geometry = new THREE.BoxGeometry(1,1,1);
+const blocks = []; // store block bounding boxes
 
+const geometry = new THREE.BoxGeometry(1,1,1);
 for(let x=0;x<chunkSize;x++){
   for(let z=0;z<chunkSize;z++){
     const height = Math.floor(Math.random()*3)+1;
@@ -40,6 +41,9 @@ for(let x=0;x<chunkSize;x++){
       const cube = new THREE.Mesh(geometry, material);
       cube.position.set(x, y, z);
       scene.add(cube);
+      // add bounding box for collision
+      const box = new THREE.Box3().setFromObject(cube);
+      blocks.push(box);
     }
   }
 }
@@ -51,27 +55,31 @@ const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 plane.rotation.x = -Math.PI/2;
 plane.position.y = -0.5;
 scene.add(plane);
+blocks.push(new THREE.Box3().setFromObject(plane));
 
-// --- Basic First-Person Controls ---
+// --- First-Person Controls ---
 const keys = {};
 document.addEventListener('keydown', e => keys[e.code]=true);
 document.addEventListener('keyup', e => keys[e.code]=false);
 
 let pitch = 0, yaw = 0;
+let velocityY = 0;
+const gravity = -9.8;
 
-// Pointer lock for smooth camera control
+// Pointer lock
 renderer.domElement.addEventListener('click', () => {
   renderer.domElement.requestPointerLock();
 });
 
 document.addEventListener('mousemove', e => {
-  if (document.pointerLockElement === renderer.domElement) {
+  if(document.pointerLockElement === renderer.domElement){
     yaw -= e.movementX * 0.002;
     pitch -= e.movementY * 0.002;
     pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
   }
 });
 
+// --- Collision & Movement ---
 function updateControls(delta){
   const speed = 5 * delta;
   const direction = new THREE.Vector3();
@@ -80,10 +88,34 @@ function updateControls(delta){
   const forward = new THREE.Vector3(direction.x,0,direction.z).normalize();
   const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
 
-  if(keys['KeyW']) camera.position.add(forward.clone().multiplyScalar(speed));
-  if(keys['KeyS']) camera.position.add(forward.clone().multiplyScalar(-speed));
-  if(keys['KeyA']) camera.position.add(right.clone().multiplyScalar(-speed));
-  if(keys['KeyD']) camera.position.add(right.clone().multiplyScalar(speed));
+  let move = new THREE.Vector3();
+  if(keys['KeyW']) move.add(forward.clone().multiplyScalar(speed));
+  if(keys['KeyS']) move.add(forward.clone().multiplyScalar(-speed));
+  if(keys['KeyA']) move.add(right.clone().multiplyScalar(-speed));
+  if(keys['KeyD']) move.add(right.clone().multiplyScalar(speed));
+
+  // Apply gravity
+  velocityY += gravity * delta;
+  move.y = velocityY * delta;
+
+  // Check collision
+  const playerBox = new THREE.Box3(
+    new THREE.Vector3(camera.position.x-0.25, camera.position.y-0.5, camera.position.z-0.25),
+    new THREE.Vector3(camera.position.x+0.25, camera.position.y+1.8, camera.position.z+0.25)
+  );
+
+  // Try X movement
+  playerBox.translate(new THREE.Vector3(move.x,0,0));
+  if(!blocks.some(b => b.intersectsBox(playerBox))) camera.position.x += move.x;
+
+  // Try Z movement
+  playerBox.translate(new THREE.Vector3(-move.x,0,move.z));
+  if(!blocks.some(b => b.intersectsBox(playerBox))) camera.position.z += move.z;
+
+  // Try Y movement (gravity)
+  playerBox.translate(new THREE.Vector3(0,-move.y,0));
+  if(!blocks.some(b => b.intersectsBox(playerBox))) camera.position.y += move.y;
+  else velocityY = 0; // stop falling if hit block
 
   camera.rotation.set(pitch, yaw, 0);
 }
@@ -98,7 +130,7 @@ function animate(){
 }
 animate();
 
-// --- Handle Window Resize ---
+// --- Resize ---
 window.addEventListener('resize', ()=>{
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
